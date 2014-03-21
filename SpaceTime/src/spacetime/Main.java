@@ -13,6 +13,9 @@ import java.util.logging.Logger;
 import org.gicentre.utils.spatial.OSGB;
 import processing.core.*;
 import peasy.*;
+import de.fhpotsdam.unfolding.*;
+import de.fhpotsdam.unfolding.geo.*;
+import de.fhpotsdam.unfolding.utils.*;
 
 public class Main extends PApplet {
 
@@ -30,6 +33,8 @@ public class Main extends PApplet {
     List<PVector> coords = new ArrayList<PVector>();
     List<PVector> screenCoords = new ArrayList<PVector>();
     List<Float> times = new ArrayList<Float>();
+    
+    UnfoldingMap map;
 
     @Override
     public void setup() {
@@ -52,6 +57,10 @@ public class Main extends PApplet {
         cam.setMinimumDistance(50);
         cam.setMaximumDistance(5000);
         
+        // Set up the map
+        map = new UnfoldingMap(this);
+        MapUtils.createDefaultEventDispatcher(this, map);
+        
 //        sphereDetail(5);
 
         try {
@@ -73,14 +82,14 @@ public class Main extends PApplet {
         //text("" + frameRate, 10, 10);
         //noFill();
 
-        pushMatrix();
-
-//        translate (screenCentre.x, screenCentre.y);
-        translate(-1500, -1000);
-        fill(100, 100, 100);
-        noStroke();
-        rect(0, 0, 3000, 2000);
-        popMatrix();
+        // Draw the rectangle
+//        pushMatrix();
+////        translate (screenCentre.x, screenCentre.y);
+//        translate(-1500, -1000);
+//        fill(100, 100, 100);
+//        noStroke();
+//        rect(0, 0, 3000, 2000);
+//        popMatrix();
         
         
 
@@ -94,6 +103,9 @@ public class Main extends PApplet {
             vertex(screenCoords.get(i).x,screenCoords.get(i).y, times.get(i));  
         }
         endShape();
+        
+        
+        map.draw();
         
 //        for (int i=0; i<coords.size(); i++) {
 //            pushMatrix();

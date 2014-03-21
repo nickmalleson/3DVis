@@ -16,6 +16,7 @@ import peasy.*;
 import de.fhpotsdam.unfolding.*;
 import de.fhpotsdam.unfolding.geo.*;
 import de.fhpotsdam.unfolding.utils.*;
+import de.fhpotsdam.unfolding.providers.*;
 
 public class Main extends PApplet {
 
@@ -58,7 +59,15 @@ public class Main extends PApplet {
         cam.setMaximumDistance(5000);
         
         // Set up the map
-        map = new UnfoldingMap(this);
+        map = new UnfoldingMap(
+                this,
+                53.1f,       // x position
+                1.4f,        // y position
+                750f,       // width
+                500f,        // height
+                new Microsoft.AerialProvider()
+        );
+        map.zoomAndPanTo(new Location(52.5f, 13.4f), 10);
         MapUtils.createDefaultEventDispatcher(this, map);
         
 //        sphereDetail(5);

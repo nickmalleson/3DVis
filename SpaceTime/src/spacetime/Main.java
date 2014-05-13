@@ -14,7 +14,10 @@ import org.gicentre.utils.spatial.OSGB;
 import processing.core.*;
 import peasy.*;
 import de.fhpotsdam.unfolding.*;
+import de.fhpotsdam.unfolding.data.MarkerFactory;
+import de.fhpotsdam.unfolding.data.PointFeature;
 import de.fhpotsdam.unfolding.geo.*;
+import de.fhpotsdam.unfolding.marker.Marker;
 import de.fhpotsdam.unfolding.utils.*;
 import de.fhpotsdam.unfolding.providers.*;
 
@@ -22,17 +25,20 @@ public class Main extends PApplet {
 
     PImage backgroundMap;        // OpenStreetMap.
 //    PVector tlCorner, brCorner;   // Corners of map in WebMercator coordinates.
-    OSGB bng = new OSGB(); // For converting from lat/lon to bng
-    // Corners of the data (hard-coded from input)
-    PVector tlCorner = bng.transformCoords(new PVector(-1.646491f, 53.868911f));
-    PVector brCorner = bng.transformCoords(new PVector(-1.630948f, 53.843498f));
+//    OSGB bng = new OSGB(); // For converting from lat/lon to bng
+    
+    // Corners of the data
+    PVector tlCorner, brCorner;
+    
 //    PVector centre; // Centre of the map
 //    PVector screenCentre; // Centre converted to screen pixels
     PeasyCam cam;
 //    List<Float> xcors = new ArrayList<Float>();
 //    List<Float> ycors = new ArrayList<Float>();
-    List<PVector> coords = new ArrayList<PVector>();
+    
+    //List<PVector> bngcoords = new ArrayList<PVector>();
     List<PVector> screenCoords = new ArrayList<PVector>();
+    List<PVector> latloncoords = new ArrayList<PVector>();
     List<Float> times = new ArrayList<Float>();
     
     UnfoldingMap map;
@@ -47,6 +53,14 @@ public class Main extends PApplet {
         //The default mode (just size(800,800) is more accurate but slower. 
         //Both P2D and P3D use openGL by default
         size(800, 800, OPENGL);
+        
+        // Read the GPS data
+        try {
+            readData();
+        } catch (Exception ex) {
+            System.out.println(ex.toString());
+            ex.printStackTrace();
+        }
 
         // FInd out where to look (centre of base map)
 //        centre = new PVector(brCorner.x - tlCorner.x, tlCorner.y - brCorner.x);
@@ -54,30 +68,45 @@ public class Main extends PApplet {
 //        assert centre.x > 0 && centre.y > 0;
 
 //        cam = new PeasyCam(this, screenCentre.x,screenCentre.y,0,1000);
-        cam = new PeasyCam(this, 0, 0, 0, 1000);
-        cam.setMinimumDistance(50);
-        cam.setMaximumDistance(5000);
+        cam = new PeasyCam(this, 400, 400, 0, 500);
+        cam.setMinimumDistance(10);
+        cam.setMaximumDistance(1000);
         
         // Set up the map
         map = new UnfoldingMap(
                 this,
-                53.1f,       // x position
-                1.4f,        // y position
-                750f,       // width
-                500f,        // height
-                new Microsoft.AerialProvider()
+                latloncoords.get(0).x,        // x position
+                latloncoords.get(0).y,        // y position
+                800f,                         // width
+                800f,                         // height
+                new Microsoft.RoadProvider() // (see providers here: http://unfoldingmaps.org/tutorials/mapprovider-and-tiles.html#)
+                //new Google.GoogleMapProvider()
+                //new Microsoft.AerialProvider()
         );
-        map.zoomAndPanTo(new Location(52.5f, 13.4f), 10);
-        MapUtils.createDefaultEventDispatcher(this, map);
+        Location startLocation = new Location(latloncoords.get(0).x,latloncoords.get(0).y);
+        map.zoomAndPanTo(startLocation, 10);
+        System.out.println("Sart location: "+startLocation.toString());
+        
+        // Add markers
+        try {
+            MarkerFactory mf = new MarkerFactory();
+            Marker m;
+            for (PVector p:latloncoords) {
+                m = mf.createMarker(new PointFeature(new Location(p.x,p.y)));
+                map.addMarker(m);
+            }
+        } catch (Exception e) {
+            System.err.println("Error creating markers: "+e.toString());
+            
+        }
+        
+        // Automatically zoom - don't want this because otherwise map zooms
+        // when we try to zoom in and out of data
+        //MapUtils.createDefaultEventDispatcher(this, map);
         
 //        sphereDetail(5);
 
-        try {
-            readData();
-        } catch (Exception ex) {
-            System.out.println(ex.toString());
-            ex.printStackTrace();
-        }
+
 
     }//setup
 
@@ -104,12 +133,13 @@ public class Main extends PApplet {
 
         // start drawing the 3d track
         noFill();
-         stroke(150,50,50,150);
-         strokeWeight(6);
+        stroke(150,50,50,150);
+        strokeWeight(6);
         beginShape();
         for (int i=0; i<screenCoords.size(); i++) {
-            
-            vertex(screenCoords.get(i).x,screenCoords.get(i).y, times.get(i));  
+            // (Note - divide z coordinate to shrink temporarily)
+            vertex(screenCoords.get(i).x,screenCoords.get(i).y, times.get(i)/5);  
+            System.out.println(screenCoords.get(i).x+" - "+screenCoords.get(i).y);
         }
         endShape();
         
@@ -146,27 +176,46 @@ public class Main extends PApplet {
         String[] lineSplit;
         int counter = 0;
 
-        Float lat, lon;
-        PVector geo, bngcoord;
-
+        Float lat, lon, 
+                minlat = Float.MAX_VALUE, minlon = Float.MAX_VALUE,
+                maxlat = -Float.MAX_VALUE, maxlon = -Float.MAX_VALUE;
+        
+        // First pass - read data
         while ((line = br.readLine()) != null) {
 
 //            System.out.println(line);
             lineSplit = line.split(",");
             // Read lat/lon coordinates
-            lat = (Float.parseFloat(lineSplit[2]));
-            lon = (Float.parseFloat(lineSplit[3]));
-            geo = new PVector(lon, lat);
-            bngcoord = bng.transformCoords(geo);
-            coords.add(bngcoord);
+            lon = (Float.parseFloat(lineSplit[2]));
+            lat = (Float.parseFloat(lineSplit[3]));
+            PVector geo = new PVector(lon, lat);
+            latloncoords.add(geo);
+            //bngcoord = bng.transformCoords(geo);
+            //bngcoords.add(bngcoord);
+            times.add((float) counter++);
             
-            screenCoords.add(geoToScreen(bngcoord));
+            if (lon < minlon) minlon = lon;
+            if (lon > maxlon) maxlon = lon;
+            if (lat < minlat) minlat = lat;
+            if (lat > maxlat) maxlat = lat;
+
+        }
+        
+        // Set top and bottom corners in the data
+        
+        tlCorner = new PVector(maxlat,minlon);
+        brCorner = new PVector(minlat,maxlon);
+        System.out.println("TL and BR corners: "+tlCorner.toString()+" , "+brCorner.toString());
+        
+        // Second pass - work out the screen coordinates (need min/max lat lon first)
+        for (PVector geo:latloncoords) {
+                    //screenCoords.add(geoToScreen(bngcoord));
+            screenCoords.add(geoToScreen(geo));
             // Convert to BNG and add to lists:
 //            xcors.add(Float.parseFloat(lineSplit[2]));
 //            ycors.add(Float.parseFloat(lineSplit[3]));
-            times.add((float) counter++);
-
         }
+
 
 
     }

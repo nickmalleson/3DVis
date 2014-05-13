@@ -29,6 +29,8 @@ public class Main extends PApplet {
     
     // Corners of the data
     PVector tlCorner, brCorner;
+    //PVector tlCorner = bng.transformCoords(new PVector(-1.646491f, 53.868911f));
+    //PVector brCorner = bng.transformCoords(new PVector(-1.630948f, 53.843498f));
     
 //    PVector centre; // Centre of the map
 //    PVector screenCentre; // Centre converted to screen pixels
@@ -68,31 +70,43 @@ public class Main extends PApplet {
 //        assert centre.x > 0 && centre.y > 0;
 
 //        cam = new PeasyCam(this, screenCentre.x,screenCentre.y,0,1000);
-        cam = new PeasyCam(this, 400, 400, 0, 500);
+        cam = new PeasyCam(this,
+                400,        // look at x
+                400,        // look at y
+                0,          // look at z
+                400         // distance from centre
+        ); 
         cam.setMinimumDistance(10);
         cam.setMaximumDistance(1000);
         
-        // Set up the map
+        // Set up the map. Note some confusion over x,y and lon,lat.
+        // PVectors have (x,y), but Locations have (y,x)
+        Location startLocation = new Location(
+                latloncoords.get(0).y,      // y position (lat)
+                latloncoords.get(0).x);     // x position (lon)
+        System.out.println("Sart location: "+startLocation.toString()+
+                " - ("+startLocation.x+","+startLocation.y+")");
+        
         map = new UnfoldingMap(
                 this,
-                latloncoords.get(0).x,        // x position
-                latloncoords.get(0).y,        // y position
+                startLocation.x,        // x position (lon)
+                startLocation.y,        // y position (lat)
                 800f,                         // width
                 800f,                         // height
                 new Microsoft.RoadProvider() // (see providers here: http://unfoldingmaps.org/tutorials/mapprovider-and-tiles.html#)
                 //new Google.GoogleMapProvider()
                 //new Microsoft.AerialProvider()
         );
-        Location startLocation = new Location(latloncoords.get(0).x,latloncoords.get(0).y);
+        
         map.zoomAndPanTo(startLocation, 10);
-        System.out.println("Sart location: "+startLocation.toString());
+        
         
         // Add markers
         try {
             MarkerFactory mf = new MarkerFactory();
             Marker m;
             for (PVector p:latloncoords) {
-                m = mf.createMarker(new PointFeature(new Location(p.x,p.y)));
+                m = mf.createMarker(new PointFeature(new Location(p.y,p.x)));
                 map.addMarker(m);
             }
         } catch (Exception e) {
@@ -139,7 +153,7 @@ public class Main extends PApplet {
         for (int i=0; i<screenCoords.size(); i++) {
             // (Note - divide z coordinate to shrink temporarily)
             vertex(screenCoords.get(i).x,screenCoords.get(i).y, times.get(i)/5);  
-            System.out.println(screenCoords.get(i).x+" - "+screenCoords.get(i).y);
+//            System.out.println(screenCoords.get(i).x+" - "+screenCoords.get(i).y);
         }
         endShape();
         
@@ -186,8 +200,8 @@ public class Main extends PApplet {
 //            System.out.println(line);
             lineSplit = line.split(",");
             // Read lat/lon coordinates
-            lon = (Float.parseFloat(lineSplit[2]));
-            lat = (Float.parseFloat(lineSplit[3]));
+            lat = (Float.parseFloat(lineSplit[2])); // y, e.g. 53.8
+            lon = (Float.parseFloat(lineSplit[3])); // x, e.g. -1.63
             PVector geo = new PVector(lon, lat);
             latloncoords.add(geo);
             //bngcoord = bng.transformCoords(geo);
@@ -203,8 +217,8 @@ public class Main extends PApplet {
         
         // Set top and bottom corners in the data
         
-        tlCorner = new PVector(maxlat,minlon);
-        brCorner = new PVector(minlat,maxlon);
+        brCorner = new PVector(maxlon,minlat);
+        tlCorner = new PVector(minlon,maxlat);
         System.out.println("TL and BR corners: "+tlCorner.toString()+" , "+brCorner.toString());
         
         // Second pass - work out the screen coordinates (need min/max lat lon first)
